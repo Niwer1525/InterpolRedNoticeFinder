@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Interpol Finder</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="./style.css">
+        <script src="./script.js"></script>
+        <link rel="icon" href="./image.webp">
+    </head>
+    <body>
+        <!-- Form -->
+        <form id="searchForm">
+            <label>
+                First name :
+                <input type="text" name="forename" placeholder="Marc">
+            </label>
+            <label>
+                Last name :
+                <input type="text" name="name" placeholder="Dutroux">
+            </label>
+            <label>
+                Arrest warrant country :
+                <input type="text" name="arrestWarrantCountryId" placeholder="BE" maxlength="2">
+            </label>
+            <label>
+                Sex :
+                <select name="sexId">
+                    <option value=" ">EMPTY</option>
+                    <option value="M">MALE</option>
+                    <option value="F">FEMALE</option>
+                    <option value="U">UNKNOWN</option>
+                </select>
+            </label>
+            <label>
+                Free text :
+                <input type="text" name="freeText" placeholder="Meurder, rape, theft">
+            </label>
+            <label>
+                Nationality :
+                <input type="text" name="nationality" placeholder="BE" maxlength="2">
+            </label>
+            <label>
+                Min age :
+                <input type="number" name="minAge" placeholder="18">
+            </label>
+            <label>
+                Max age :
+                <input type="number" name="maxAge" placeholder="99">
+            </label>
+            <button type="submit">Search</button>
+        </form>
+        <!-- Results -->
+        <div class="selectedNotice">
+            <div id="results"></div>
+            <button type="button" onclick="randomNotice()">RE-GENERATE</button>
+            <form id="checkForm">
+                <label>
+                    Charge :
+                    <textarea name="charge" placeholder="Murder with knife"></textarea>
+                </label>
+                <button type="submit">CHECK</button>
+            </form>
+            <span id="checkResult"></span>
+            <span id="chargeContent"></span>
+        </div>
+    </body>
+</html>
