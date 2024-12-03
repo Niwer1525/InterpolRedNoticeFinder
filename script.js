@@ -81,6 +81,24 @@ async function fetchNoticeInfos(noticeID, url) {
         .then(data => notice_infos[noticeID] = data);
 }
 
+async function translate(params) {
+    const response = await fetch("http://192.168.50.50:5000/translate", {
+        method: "POST",
+        body: JSON.stringify({
+            q: params,
+            source: "auto",
+            target: "en",
+            format: "text",
+            alternatives: 3,
+            api_key: ""
+        }),
+        headers: { "Content-Type": "application/json" }
+    });
+    
+    const data = await response.json();
+    return data.translatedText;
+}
+
 function checkNotice(form) {
     if(current_notice_id === null) return;
 
@@ -93,14 +111,17 @@ function checkNotice(form) {
         return;
     }
 
-    infos.arrest_warrants.forEach(warrant => {
-        const hasCharge = warrant.charge.includes(charge);
+    infos.arrest_warrants.forEach(async warrant => {
+        const translatedCharge = await translate(warrant.charge);
+        console.log(warrant.charge, "/", translatedCharge);
+
+        const hasCharge = translatedCharge.toLowerCase().includes(charge.toLowerCase());
         const chargeResult = document.getElementById('checkResult');
         const audio = new Audio(hasCharge ? './success.mp3' : './fail.mp3');
 
         chargeResult.innerHTML = hasCharge ? `This person is wanted for this charge!` : `This person is not wanted for this charge... Try again!`;
         chargeResult.style.color = hasCharge ? 'green' : 'red';
-        if(hasCharge) document.getElementById('chargeContent').innerHTML = `Charge provided : ${warrant.charge}`;
+        if(hasCharge) document.getElementById('chargeContent').innerHTML = `Charge provided : ${translatedCharge}`;
         audio.play();
     });
 }
