@@ -9,8 +9,9 @@
         <link rel="icon" href="./image.webp">
     </head>
     <body>
-        <!-- Form -->
+        <!-- Filters Form -->
         <form id="searchForm">
+            <h2>Filters :</h2>
             <label>
                 First name :
                 <input type="text" name="forename" placeholder="Marc">
@@ -48,7 +49,8 @@
                 Max age :
                 <input type="number" name="maxAge" placeholder="99">
             </label>
-            <button type="submit">Search</button>
+            <button type="submit">Search/Filter and generate</button>
+            <button type="button" onclick="resetFilterForm()">Reset</button>
         </form>
         <!-- Results -->
         <div class="selectedNotice">

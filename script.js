@@ -1,144 +1,151 @@
 /*
  * Tanks to this : https://interpol.api.bund.dev/
  */
-let notices = [];
-let notice_infos = {};
-let current_notice_id = null;
+const state = {
+    notices: [],
+    noticeInfos: {},
+    currentNoticeId: null
+};
 
+/**
+ * Fetch notice information from the API.
+ * @param {string} noticeID - The ID of the notice.
+ * @param {string} url - The API endpoint URL.
+ */
+async function fetchNoticeInfos(noticeID, url) {
+    try {
+        state.noticeInfos[noticeID] = await (await fetch(url)).json();
+    } catch {
+        state.noticeInfos[noticeID] = null;
+    }
+}
+
+/**
+ * Select a random notice from the state and create its HTML element.
+ */
+function randomNotice() {
+    if (state.notices.length) createNoticeElement(state.notices[Math.random() * state.notices.length | 0]);
+}
+
+/**
+ * Create an HTML element for a notice.
+ * @param {*} notice 
+ */
 async function createNoticeElement(notice) {
-    /* Get the notice link and ID */
-    const noticeLink = notice._links;
-    const noticeID = notice.entity_id;
-    current_notice_id = noticeID;
-    await fetchNoticeInfos(noticeID, noticeLink.self.href);
+    const { _links: l, entity_id: id, forename, name, date_of_birth, nationalities } = notice;
+    state.currentNoticeId = id;
+    if (!state.noticeInfos[id]) await fetchNoticeInfos(id, l.self.href);
+    const info = state.noticeInfos[id] || {}, birth = new Date(date_of_birth), age = new Date().getFullYear() - birth.getFullYear();
+    document.getElementById('results').innerHTML = `
+        <article>
+            ${l.thumbnail ? `<img src="${l.thumbnail.href}" alt="${forename} ${name}">` : ''}
+            <h2>${forename} ${name}</h2>
+            <p>Birth of date : <span>${date_of_birth} (Age : ${age})</span></p>
+            <p>Nationalities : <span>${nationalities}</span></p>
+            ${info.languages_spoken_ids ? `<p>Spoken langs : <span>${info.languages_spoken_ids}</span></p>` : ''}
+            ${info.height ? `<p>Height : <span>${info.height}</span></p>` : ''}
+            ${info.weight ? `<p>Weight : <span>${info.weight}</span></p>` : ''}
+            ${info.distinguishing_marks ? `<p>Distinguishing marks : <span>${info.distinguishing_marks}</span></p>` : ''}
+            ${info.arrest_warrants?.length ? `<h3>Arrest warrants</h3>${info.arrest_warrants.map(w => `<p>Issuing country : <span>${w.issuing_country_id}</span></p>`).join('')}` : ''}
+            <a href="https://www.interpol.int/fr/Notre-action/Notices/Notices-rouges/Voir-les-notices-rouges#${id.replace('/', '-')}" target="_blank">More informations</a>
+        </article>
+    `;
+}
 
-    /* Create the notice element */
-    let html = `<article>`;
-    
-    /* Informations */
-    if(noticeLink.thumbnail) html += `<img src="${noticeLink.thumbnail.href}" alt="${notice.forename} ${notice.name}">`;
-    html += `<h2>${notice.forename} ${notice.name}</h2>`;
-    const birthDate = new Date(notice.date_of_birth);
-    const age = new Date().getFullYear() - birthDate.getFullYear();
-    html += `<p>Birth of date : <span>${notice.date_of_birth} (Age : ${age})</span></p>`;
-    html += `<p>Nationalities : <span>${notice.nationalities}</span></p>`;
+/**
+ * This will ask the Interpol API for notices based on the provided form data.
+ * @param {*} form  The form element containing the search criteria.
+ */
+async function searchNotices(form) {
+    if (!confirm('Search for notices?')) return;
+    const data = new FormData(form), url = new URL('https://ws-public.interpol.int/notices/v1/red');
+    url.search = new URLSearchParams({ resultPerPage: 200, page: Math.floor(Math.random() * 10) + 1, ...Object.fromEntries([...data].filter(([_, v]) => v.trim())) });
+    state.notices = [];
+    try {
+        const res = await fetch(url), json = await res.json();
+        if (json._embedded?.notices?.length) {
+            state.notices.push(...json._embedded.notices);
+            randomNotice();
+        } else document.getElementById('results').innerHTML = '<p>No notices found.</p>';
+    } catch {
+        document.getElementById('results').innerHTML = '<p>Error fetching notices.</p>';
+    }
+}
 
-    /* Deep informations */
-    if(notice_infos[noticeID]) {
-        const noticeInfos = notice_infos[noticeID];
-        if(noticeInfos.languages_spoken_ids) html += `<p>Spoken langs : <span>${noticeInfos.languages_spoken_ids}</span></p>`;
-        if(noticeInfos.height) html += `<p>Height : <span>${noticeInfos.height}</span></p>`;
-        if(noticeInfos.weight) html += `<p>Weight : <span>${noticeInfos.weight}</span></p>`;
-        if(noticeInfos.distinguishing_marks) html += `<p>Distinguishing marks : <span>${noticeInfos.distinguishing_marks}</span></p>`;
+/**
+ * Translate a text using the local translation API.
+ * @param {*} params  The text to translate.
+ * @returns  The translated text or the original text if translation fails.
+ */
+async function translate(params) { //TODO Lire translate cannot be host on github pages so I've disabled this. This may cause issues when playing
+    // try {
+    //     // Try to translate from auto to english
+    //     const response = await fetch("https://libretranslate.com/translate", {
+    //         method: "POST",
+    //         body: JSON.stringify({
+    //             q: params,
+    //             source: "auto",
+    //             target: "en",
+    //             format: "text"
+    //         }),
+    //         headers: { "Content-Type": "application/json" }
+    //     });
+    //     const data = await response.json();
+    //     return data.translatedText;
+    // } catch (e) {
+    //     return params; // Return original text if translation fails
+    // }
+    return params;
+}
 
-        const arrest_warrants = noticeInfos.arrest_warrants;
-        if(arrest_warrants) {
-            html += `<h3>Arrest warrants</h3>`;
-            arrest_warrants.forEach(warrant => {
-                // html += `<p>Charge : <span>${warrant.charge.replace('\n', '<br>').replace('\t', '').replace('*', '')}</span></p>`;
-                html += `<p>Issuing country : <span>${warrant.issuing_country_id}</span></p>`;
-            });
+/**
+ * Check if a notice matches the provided form data.
+ * @param {*} form  The form element containing the charge to check.
+ */
+async function checkNotice(form) {
+    if (!state.currentNoticeId) return;
+    const data = new FormData(form), charge = data.get('charge')?.toLowerCase();
+    const infos = state.noticeInfos[state.currentNoticeId], warrants = infos?.arrest_warrants || [];
+    const chargeResult = document.getElementById('checkResult'), chargeContent = document.getElementById('chargeContent');
+    let found = false;
+    let matchedCharge = '';
+    for (const w of warrants) {
+        const translated = (await translate(w.charge)).toLowerCase();
+        if (charge && translated.includes(charge)) {
+            found = true;
+            matchedCharge = translated;
+            break;
         }
     }
-
-    /* Go to the official page */
-    html += `<a href="https://www.interpol.int/fr/Notre-action/Notices/Notices-rouges/Voir-les-notices-rouges#${noticeID.replace('/', '-')}" target="_blank">More informations</a>`;
-    html += `</article>`;
-
-    /* Append the notice element */
-    document.getElementById('results').innerHTML = html;
-}
-
-function searchNotices(form) {
-    /* Popup alert */
-    alert('Are you sure you want to search for notices? This will clear the previous results.');
-
-    const data = new FormData(form);
-    const url = new URL('https://ws-public.interpol.int/notices/v1/red');
-
-    /* Filter empty values */
-    const filteredData = { resultPerPage: 200, page: Math.floor(Math.random() * 10) + 1 };
-    data.forEach((value, key) => {
-        if (value.trim() !== "") filteredData[key] = value;
-    });
-    url.search = new URLSearchParams(filteredData).toString();
-
-    /* Clear previous notices */
-    notices = [];
-
-    /* Fetch notices */
-    fetch(url)
-        .then(response => response.json())
-        .then(data => {
-            notices.push(...data._embedded.notices); // Add notices to the global array
-            randomNotice(); // Create a random notice element
-        });
-}
-
-async function fetchNoticeInfos(noticeID, url) {
-    await fetch(url)
-        .then(response => response.json())
-        .then(data => notice_infos[noticeID] = data);
-}
-
-async function translate(params) {
-    const response = await fetch("http://192.168.50.50:5000/translate", {
-        method: "POST",
-        body: JSON.stringify({
-            q: params,
-            source: "auto",
-            target: "en",
-            format: "text",
-            alternatives: 3,
-            api_key: ""
-        }),
-        headers: { "Content-Type": "application/json" }
-    });
-    
-    const data = await response.json();
-    return data.translatedText;
-}
-
-function checkNotice(form) {
-    if(current_notice_id === null) return;
-
-    const data = new FormData(form);
-    const charge = data.get('charge');
-    const infos = notice_infos[current_notice_id];
-
-    if(!infos || !charge || infos.arrest_warrants.length === 0) {
-        alert('No informations found for this notice.');
-        return;
+    if (found) { //TODO this can be optimized but i'm too lazy...
+        chargeResult.innerHTML = 'This person is wanted for this charge!';
+        chargeResult.style.color = 'green';
+        chargeContent.innerHTML = `Charge provided : ${matchedCharge}`;
+        new Audio('./success.mp3').play();
+        chargeResult.classList.replace('shake', 'pulse');
+        setTimeout(() => chargeResult.classList.remove('pulse'), 1200);
+    } else {
+        chargeResult.innerHTML = 'This person is not wanted for this charge... Try again!';
+        chargeResult.style.color = 'red';
+        chargeContent.innerHTML = '';
+        new Audio('./fail.mp3').play();
+        chargeResult.classList.replace('pulse', 'shake');
+        setTimeout(() => chargeResult.classList.remove('shake'), 800);
     }
+}
 
-    infos.arrest_warrants.forEach(async warrant => {
-        const translatedCharge = await translate(warrant.charge);
-        console.log(warrant.charge, "/", translatedCharge);
-
-        const hasCharge = translatedCharge.toLowerCase().includes(charge.toLowerCase());
-        const chargeResult = document.getElementById('checkResult');
-        const audio = new Audio(hasCharge ? './success.mp3' : './fail.mp3');
-
-        chargeResult.innerHTML = hasCharge ? `This person is wanted for this charge!` : `This person is not wanted for this charge... Try again!`;
-        chargeResult.style.color = hasCharge ? 'green' : 'red';
-        if(hasCharge) document.getElementById('chargeContent').innerHTML = `Charge provided : ${translatedCharge}`;
-        audio.play();
-    });
+function resetFilterForm() {
+    if (confirm('Reset form and clear results?')) {
+        ['searchForm', 'results', 'checkResult', 'chargeContent'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) id === 'searchForm' ? el.reset() : el.innerHTML = '';
+        });
+        Object.assign(state, { notices: [], noticeInfos: {}, currentNoticeId: null });
+    }
 }
 
 document.addEventListener('submit', event => {
     event.preventDefault();
-    switch (event.target.id) {
-        case 'searchForm':
-            searchNotices(event.target);
-            break;
-        case 'checkForm':
-            checkNotice(event.target);
-            break;
-    }
+    if (event.target.id === 'searchForm') searchNotices(event.target);
+    else if (event.target.id === 'checkForm') checkNotice(event.target);
 });
-
-function randomNotice() {
-    const randomIndex = Math.floor(Math.random() * notices.length);
-    createNoticeElement(notices[randomIndex]);
-}
